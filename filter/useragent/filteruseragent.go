@@ -3,7 +3,7 @@ package filteruseragent
 import (
 	"context"
 
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/tsaikd/gogstash/config"
 	"github.com/tsaikd/gogstash/config/logevent"
 	"github.com/ua-parser/uap-go/uaparser"
@@ -65,7 +65,7 @@ type FilterConfig struct {
 
 	fields uaFields
 	parser *uaparser.Parser
-	cache  *lru.Cache
+	cache  *lru.Cache[string, *uaparser.Client]
 }
 
 // DefaultFilterConfig returns an FilterConfig struct with default values
@@ -103,7 +103,7 @@ func InitHandler(
 	}
 
 	conf.fields.Init(conf.Target)
-	conf.cache, err = lru.New(conf.CacheSize)
+	conf.cache, err = lru.New[string, *uaparser.Client](conf.CacheSize)
 	if err != nil {
 		return nil, err
 	}
@@ -117,11 +117,9 @@ func (f *FilterConfig) Event(ctx context.Context, event logevent.LogEvent) (loge
 	if ua == "" {
 		return event, false
 	}
-	var client *uaparser.Client
 	// single-thread here
-	if c, ok := f.cache.Get(ua); ok {
-		client = c.(*uaparser.Client)
-	} else {
+	client, ok := f.cache.Get(ua)
+	if !ok {
 		client = f.parser.Parse(ua)
 		f.cache.Add(ua, client)
 	}

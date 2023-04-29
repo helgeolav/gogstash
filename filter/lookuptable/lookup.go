@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/tsaikd/gogstash/config"
 	"github.com/tsaikd/gogstash/config/goglog"
 	"github.com/tsaikd/gogstash/config/logevent"
@@ -38,7 +38,7 @@ type FilterConfig struct {
 	// We can optimize it by adding a cache
 	CacheSize int `json:"cache_size"`
 
-	cache *lru.Cache
+	cache *lru.Cache[string, string]
 
 	file *os.File
 }
@@ -77,7 +77,7 @@ func InitHandler(
 		return &conf, fmt.Errorf("read lookup file: %v", err)
 	}
 
-	conf.cache, err = lru.New(conf.CacheSize)
+	conf.cache, err = lru.New[string, string](conf.CacheSize)
 	if err != nil {
 		return nil, err
 	}
@@ -95,21 +95,21 @@ func (f *FilterConfig) Event(ctx context.Context, event logevent.LogEvent) (loge
 		return event, false
 	}
 
-	if val != nil {
+	if val != "" {
 		event.SetValue(f.Target, val)
 	}
 	return event, true
 }
 
 // findFromFile translates key to value.
-func (f *FilterConfig) findFromFile(key string) (interface{}, error) {
+func (f *FilterConfig) findFromFile(key string) (string, error) {
 	cached, ok := f.cache.Get(key)
 	if ok {
 		return cached, nil
 	}
 	_, err := f.file.Seek(0, io.SeekStart)
 	if err != nil {
-		return nil, fmt.Errorf("seek cleanup file: %v", err)
+		return "", fmt.Errorf("seek cleanup file: %v", err)
 	}
 	var value interface{}
 	scanner := bufio.NewScanner(f.file)
@@ -135,9 +135,9 @@ func (f *FilterConfig) findFromFile(key string) (interface{}, error) {
 	}
 
 	if value != nil {
-		f.cache.Add(key, value)
+		f.cache.Add(key, value.(string))
 	}
-	return value, nil
+	return value.(string), nil
 }
 
 // tokenize single line in lookuptable file returning key-value and possible error

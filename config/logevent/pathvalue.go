@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 type pathtoken struct {
@@ -16,11 +16,11 @@ type pathtoken struct {
 
 const cacheSize = 200
 
-var cache *lru.Cache
+var cache *lru.Cache[string, []pathtoken]
 
 func init() {
 	var err error
-	cache, err = lru.New(cacheSize)
+	cache, err = lru.New[string, []pathtoken](cacheSize)
 	if err != nil {
 		panic(err)
 	}
@@ -73,11 +73,8 @@ func compilePath(path string) []pathtoken {
 }
 
 func compilePathWithCache(path string) []pathtoken {
-	var tokens []pathtoken
-	cachedTokens, ok := cache.Get(path)
-	if ok {
-		tokens = cachedTokens.([]pathtoken)
-	} else {
+	tokens, ok := cache.Get(path)
+	if !ok {
 		tokens = compilePath(path)
 		cache.Add(path, tokens)
 	}

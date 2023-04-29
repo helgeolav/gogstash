@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	geoip2 "github.com/oschwald/geoip2-golang"
 	"github.com/tsaikd/gogstash/config"
 	"github.com/tsaikd/gogstash/config/goglog"
@@ -38,7 +38,7 @@ type FilterConfig struct {
 	watcher *fsnotify.Watcher
 	ctx     context.Context
 
-	cache        *lru.Cache
+	cache        *lru.Cache[string, *geoip2.City]
 	privateCIDRs []*net.IPNet
 }
 
@@ -75,7 +75,7 @@ func InitHandler(
 	if err != nil {
 		return nil, err
 	}
-	conf.cache, err = lru.New(conf.CacheSize)
+	conf.cache, err = lru.New[string, *geoip2.City](conf.CacheSize)
 	if err != nil {
 		return nil, err
 	}
@@ -131,11 +131,9 @@ func (f *FilterConfig) Event(ctx context.Context, event logevent.LogEvent) (loge
 		return event, false
 	}
 	var err error
-	var record *geoip2.City
 	// single-thread here
-	if c, ok := f.cache.Get(ipstr); ok {
-		record = c.(*geoip2.City)
-	} else {
+	record, ok := f.cache.Get(ipstr)
+	if !ok {
 		f.dbMtx.RLock()
 		record, err = f.db.City(ip)
 		f.dbMtx.RUnlock()

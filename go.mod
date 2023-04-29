@@ -14,7 +14,7 @@ require (
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/fsouza/go-dockerclient v1.9.7
 	github.com/golang/mock v1.6.0
-	github.com/hashicorp/golang-lru v0.5.4
+	github.com/hashicorp/golang-lru/v2 v2.0.2
 	github.com/icza/dyno v0.0.0-20200205103839-49cb13720835
 	github.com/ip2location/ip2location-go/v9 v9.6.0
 	github.com/ip2location/ip2proxy-go v3.0.0+incompatible

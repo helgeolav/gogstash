@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/ip2location/ip2location-go/v9"
 	"github.com/tsaikd/gogstash/config"
 	"github.com/tsaikd/gogstash/config/goglog"
@@ -35,7 +35,7 @@ type FilterConfig struct {
 	dbMtx sync.RWMutex    // lock for db
 	db    *ip2location.DB // database
 
-	cache        *lru.Cache
+	cache        *lru.Cache[string, *ip2location.IP2Locationrecord]
 	privateCIDRs []*net.IPNet
 
 	watcher *fsnotify.Watcher
@@ -132,7 +132,7 @@ func InitHandler(
 	}
 
 	// init cache
-	conf.cache, err = lru.New(conf.CacheSize)
+	conf.cache, err = lru.New[string, *ip2location.IP2Locationrecord](conf.CacheSize)
 	if err != nil {
 		return nil, err
 	}
@@ -186,10 +186,8 @@ func (f *FilterConfig) Event(ctx context.Context, event logevent.LogEvent) (loge
 		// Passthru
 		return event, false
 	}
-	var record *ip2location.IP2Locationrecord
-	if c, ok := f.cache.Get(ipstr); ok {
-		record = c.(*ip2location.IP2Locationrecord)
-	} else {
+	record, ok := f.cache.Get(ipstr)
+	if !ok {
 		f.dbMtx.RLock()
 		r2, err := f.db.Get_all(ipstr)
 		f.dbMtx.RUnlock()
